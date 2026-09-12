@@ -1,5 +1,4 @@
 import pygame
-import random
 import time
 
 from game_logic import take_damage
@@ -7,7 +6,7 @@ from game_logic import take_damage
 
 pygame.init()
 
-WIDTH, HEIGHT = 900, 520
+WIDTH, HEIGHT = 1000, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("GameBug Hunter - Combat Demo")
 
@@ -16,60 +15,73 @@ clock = pygame.time.Clock()
 font = pygame.font.SysFont("arial", 26)
 small_font = pygame.font.SysFont("arial", 20)
 big_font = pygame.font.SysFont("arial", 42, bold=True)
+huge_font = pygame.font.SysFont("arial", 56, bold=True)
 
 MAX_HEALTH = 100
-health = MAX_HEALTH
 
-player_x = 170
-player_y = 300
+player_health = MAX_HEALTH
+enemy_health = 100
 
-enemy_x = 660
-enemy_y = 295
+player_x = 230
+player_y = 330
+
+enemy_x = 760
+enemy_y = 330
 
 last_hit_time = 0
 hit_flash = False
+
 floating_texts = []
 
 
-def add_floating_text(text, x, y):
-    floating_texts.append({
-        "text": text,
-        "x": x,
-        "y": y,
-        "created": time.time(),
-    })
+def add_floating_text(text, x, y, color):
+    floating_texts.append(
+        {
+            "text": text,
+            "x": x,
+            "y": y,
+            "color": color,
+            "created": time.time(),
+        }
+    )
 
 
-def draw_health_bar():
-    bar_x = 70
-    bar_y = 90
-    bar_w = 330
-    bar_h = 34
-
-    pygame.draw.rect(screen, (70, 70, 80), (bar_x, bar_y, bar_w, bar_h))
-
-    ratio = max(0, min(health / MAX_HEALTH, 1))
-    health_w = int(bar_w * ratio)
-
-    if health > MAX_HEALTH:
-        bar_color = (120, 200, 255)
-    elif health > 50:
-        bar_color = (80, 220, 110)
-    elif health > 25:
-        bar_color = (250, 190, 70)
-    else:
-        bar_color = (230, 70, 70)
+def draw_health_bar(x, y, health, max_health, width=300):
+    height = 30
 
     pygame.draw.rect(
         screen,
-        bar_color,
-        (bar_x, bar_y, health_w, bar_h),
+        (60, 65, 75),
+        (x, y, width, height),
+    )
+
+    ratio = health / max_health
+
+    # Keep visual bar inside bounds,
+    # even if the underlying health value is broken.
+    visual_ratio = max(0, min(ratio, 1))
+
+    health_width = int(width * visual_ratio)
+
+    if health > max_health:
+        color = (80, 170, 255)
+    elif health > 50:
+        color = (70, 220, 110)
+    elif health > 20:
+        color = (255, 190, 70)
+    else:
+        color = (240, 70, 80)
+
+    pygame.draw.rect(
+        screen,
+        color,
+        (x, y, health_width, height),
     )
 
     pygame.draw.rect(
         screen,
-        (240, 240, 240),
-        (bar_x, bar_y, bar_w, bar_h),
+        (235, 235, 235),
+        (x, y, width, height),
         3,
     )
 
@@ -79,107 +91,150 @@ def draw_health_bar():
         (255, 255, 255),
     )
 
-    screen.blit(text, (bar_x + 110, bar_y + 2))
+    screen.blit(
+        text,
+        (x + 95, y - 2),
+    )
 
 
 def draw_player():
-    body_color = (80, 170, 255)
+    body_color = (70, 160, 255)
 
     if hit_flash:
-        body_color = (255, 100, 100)
+        body_color = (255, 90, 90)
 
     pygame.draw.circle(
         screen,
         body_color,
         (player_x, player_y),
-        45,
+        55,
+    )
+
+    # Eyes
+    pygame.draw.circle(
+        screen,
+        (255, 255, 255),
+        (player_x - 18, player_y - 12),
+        8,
     )
 
     pygame.draw.circle(
         screen,
-        (230, 240, 255),
-        (player_x - 15, player_y - 10),
-        7,
+        (255, 255, 255),
+        (player_x + 18, player_y - 12),
+        8,
     )
 
-    pygame.draw.circle(
-        screen,
-        (230, 240, 255),
-        (player_x + 15, player_y - 10),
-        7,
-    )
-
+    # Sword
     pygame.draw.line(
         screen,
-        (20, 40, 70),
-        (player_x - 15, player_y + 15),
-        (player_x + 15, player_y + 15),
-        4,
+        (210, 220, 230),
+        (player_x + 40, player_y + 20),
+        (player_x + 95, player_y - 40),
+        12,
     )
 
-    label = small_font.render(
+    label = font.render(
         "PLAYER",
         True,
-        (220, 230, 255),
+        (180, 210, 255),
     )
 
     screen.blit(
         label,
-        (player_x - 35, player_y + 60),
+        (player_x - 55, player_y + 80),
     )
 
 
 def draw_enemy():
     pygame.draw.circle(
         screen,
-        (230, 80, 80),
+        (230, 70, 70),
         (enemy_x, enemy_y),
-        50,
+        60,
+    )
+
+    # Angry eyes
+    pygame.draw.circle(
+        screen,
+        (255, 240, 230),
+        (enemy_x - 20, enemy_y - 15),
+        9,
     )
 
     pygame.draw.circle(
         screen,
-        (255, 230, 230),
-        (enemy_x - 16, enemy_y - 12),
-        8,
+        (255, 240, 230),
+        (enemy_x + 20, enemy_y - 15),
+        9,
     )
 
-    pygame.draw.circle(
-        screen,
-        (255, 230, 230),
-        (enemy_x + 16, enemy_y - 12),
-        8,
-    )
-
+    # Weapon
     pygame.draw.line(
         screen,
-        (80, 10, 10),
-        (enemy_x - 18, enemy_y + 18),
-        (enemy_x + 18, enemy_y + 8),
-        5,
+        (180, 180, 180),
+        (enemy_x - 40, enemy_y + 10),
+        (enemy_x - 110, enemy_y - 50),
+        15,
     )
 
-    label = small_font.render(
+    label = font.render(
         "ENEMY",
         True,
-        (255, 210, 210),
+        (255, 190, 190),
     )
 
     screen.blit(
         label,
-        (enemy_x - 35, enemy_y + 65),
+        (enemy_x - 55, enemy_y + 85),
     )
 
 
-def draw_attack_line():
-    if time.time() - last_hit_time < 0.2:
-        pygame.draw.line(
-            screen,
-            (255, 220, 80),
-            (enemy_x - 55, enemy_y),
-            (player_x + 45, player_y),
-            8,
-        )
+def draw_attack_arrow():
+    if time.time() - last_hit_time > 0.35:
+        return
+
+    start_x = enemy_x - 70
+    start_y = enemy_y
+
+    end_x = player_x + 70
+    end_y = player_y
+
+    arrow_color = (255, 80, 80)
+
+    # Main line
+    pygame.draw.line(
+        screen,
+        arrow_color,
+        (start_x, start_y),
+        (end_x, end_y),
+        12,
+    )
+
+    # Arrow head
+    pygame.draw.polygon(
+        screen,
+        arrow_color,
+        [
+            (end_x, end_y),
+            (end_x + 35, end_y - 25),
+            (end_x + 35, end_y + 25),
+        ],
+    )
+
+    label = big_font.render(
+        "20 DAMAGE",
+        True,
+        (255, 100, 100),
+    )
+
+    screen.blit(
+        label,
+        (
+            (start_x + end_x) // 2 - 110,
+            end_y - 80,
+        ),
+    )
 
 
 def draw_floating_texts():
@@ -192,12 +247,12 @@ def draw_floating_texts():
             floating_texts.remove(item)
             continue
 
-        item["y"] -= 0.5
+        item["y"] -= 0.6
 
         text_surface = big_font.render(
             item["text"],
             True,
-            (255, 230, 90),
+            item["color"],
         )
 
         screen.blit(
@@ -207,70 +262,101 @@ def draw_floating_texts():
 
 
 def draw_status():
-    if health > MAX_HEALTH:
-        bug = big_font.render(
-            "BUG DETECTED: DAMAGE HEALS YOU!",
+    messages = []
+
+    if player_health > MAX_HEALTH:
+        messages.append(
+            "BUG 1: DAMAGE IS HEALING THE PLAYER"
+        )
+
+    if player_health < 0:
+        messages.append(
+            "BUG 2: PLAYER HP WENT BELOW ZERO"
+        )
+
+    if not messages and player_health < MAX_HEALTH:
+        messages.append(
+            "DAMAGE LOGIC WORKING CORRECTLY"
+        )
+
+    y = 165
+
+    for message in messages:
+        color = (
+            (255, 90, 90)
+            if "BUG" in message
+            else (90, 235, 130)
+        )
+
+        text = big_font.render(
+            message,
             True,
-            (255, 90, 90),
+            color,
         )
 
         screen.blit(
-            bug,
-            (210, 155),
+            text,
+            (
+                WIDTH // 2 - text.get_width() // 2,
+                y,
+            ),
         )
 
-    elif health < MAX_HEALTH:
-        ok = big_font.render(
-            "DAMAGE WORKS CORRECTLY",
-            True,
-            (100, 240, 140),
-        )
+        y += 50
 
-        screen.blit(
-            ok,
-            (260, 155),
-        )
+
+def draw_background():
+    screen.fill(
+        (18, 22, 32)
+    )
+
+    pygame.draw.rect(
+        screen,
+        (30, 36, 48),
+        (0, 420, WIDTH, 180),
+    )
+
+    pygame.draw.line(
+        screen,
+        (75, 85, 100),
+        (0, 420),
+        (WIDTH, 420),
+        4,
+    )
 
 
 def draw_instructions():
     line1 = small_font.render(
-        "SPACE = enemy attack",
+        "SPACE = enemy attacks player",
         True,
-        (210, 210, 220),
+        (220, 220, 230),
     )
 
     line2 = small_font.render(
         "R = reset health",
         True,
-        (210, 210, 220),
+        (220, 220, 230),
     )
 
     line3 = small_font.render(
-        "Run GameBug Hunter to repair game_logic.py",
+        "H = set player HP to 10 (test below-zero bug)",
         True,
-        (180, 200, 255),
+        (255, 210, 120),
     )
 
-    screen.blit(line1, (65, 445))
-    screen.blit(line2, (305, 445))
-    screen.blit(line3, (500, 445))
-
-
-def draw_background():
-    screen.fill((24, 26, 35))
-
-    pygame.draw.rect(
-        screen,
-        (35, 40, 55),
-        (0, 390, WIDTH, 130),
+    screen.blit(
+        line1,
+        (40, 520),
     )
 
-    pygame.draw.line(
-        screen,
-        (90, 100, 120),
-        (0, 390),
-        (WIDTH, 390),
-        4,
+    screen.blit(
+        line2,
+        (350, 520),
+    )
+
+    screen.blit(
+        line3,
+        (520, 520),
     )
 
 
@@ -284,61 +370,97 @@ while running:
         if event.type == pygame.KEYDOWN:
 
             if event.key == pygame.K_SPACE:
-                old_health = health
+                old_health = player_health
 
-                health = take_damage(
-                    health,
+                player_health = take_damage(
+                    player_health,
                     20,
                 )
 
                 last_hit_time = time.time()
                 hit_flash = True
 
-                delta = health - old_health
+                delta = (
+                    player_health - old_health
+                )
 
                 if delta > 0:
                     add_floating_text(
                         f"+{delta} HP",
-                        player_x - 55,
-                        player_y - 95,
+                        player_x - 65,
+                        player_y - 120,
+                        (100, 220, 255),
                     )
+
                 else:
                     add_floating_text(
                         f"{delta} HP",
-                        player_x - 55,
-                        player_y - 95,
+                        player_x - 65,
+                        player_y - 120,
+                        (255, 100, 100),
                     )
 
             if event.key == pygame.K_r:
-                health = MAX_HEALTH
+                player_health = MAX_HEALTH
                 floating_texts.clear()
+
+            if event.key == pygame.K_h:
+                player_health = 10
 
     if time.time() - last_hit_time > 0.15:
         hit_flash = False
 
     draw_background()
-    draw_health_bar()
-    draw_player()
-    draw_enemy()
-    draw_attack_line()
-    draw_floating_texts()
-    draw_status()
-    draw_instructions()
 
-    title = big_font.render(
+    title = huge_font.render(
         "GAMEBUG HUNTER",
         True,
         (235, 240, 255),
     )
 
-    subtitle = small_font.render(
-        "AI Gameplay Debugging Demo",
-        True,
-        (150, 175, 220),
+    screen.blit(
+        title,
+        (
+            WIDTH // 2 - title.get_width() // 2,
+            25,
+        ),
     )
 
-    screen.blit(title, (560, 45))
-    screen.blit(subtitle, (590, 95))
+    subtitle = small_font.render(
+        "Autonomous Gameplay Debugging Demo",
+        True,
+        (150, 180, 220),
+    )
+
+    screen.blit(
+        subtitle,
+        (
+            WIDTH // 2 - subtitle.get_width() // 2,
+            90,
+        ),
+    )
+
+    draw_health_bar(
+        80,
+        120,
+        player_health,
+        MAX_HEALTH,
+    )
+
+    draw_health_bar(
+        620,
+        120,
+        enemy_health,
+        100,
+    )
+
+    draw_player()
+    draw_enemy()
+
+    draw_attack_arrow()
+    draw_floating_texts()
+    draw_status()
+    draw_instructions()
 
     pygame.display.flip()
 

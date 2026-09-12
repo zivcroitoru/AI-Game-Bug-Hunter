@@ -8,9 +8,7 @@ from openai import OpenAI
 
 client = OpenAI()
 
-
 SOURCE_FILE = "game_logic.py"
-TEST_NAME = "test_player_takes_damage"
 
 
 def run_tests():
@@ -27,19 +25,27 @@ def ask_ai(test_output, source_code):
     prompt = f"""
 You are an autonomous gameplay debugging agent.
 
-A small game has a failing automated test.
+A small game has one or more failing automated tests.
 
-GAMEPLAY SOURCE:
+SOURCE FILE:
+{SOURCE_FILE}
+
+CURRENT SOURCE:
 {source_code}
 
-TEST FAILURE:
+FAILING TEST OUTPUT:
 {test_output}
 
-Find the gameplay bug and fix it.
+Fix ONLY the bugs demonstrated by the currently failing tests.
+
+Do not redesign unrelated behavior.
+Do not anticipate bugs that are not currently demonstrated by the tests.
 
 Return ONLY the complete corrected Python source file.
-Do not return markdown.
-Do not explain anything.
+
+Do not use markdown.
+Do not use code fences.
+Do not explain the answer.
 """
 
     response = client.responses.create(
@@ -50,18 +56,26 @@ Do not explain anything.
     return response.output_text
 
 
+def clean_ai_output(text):
+    return (
+        text
+        .replace("```python", "")
+        .replace("```", "")
+        .strip()
+    )
+
+
 def save_result(
     test_output,
-    old_source,
+    original_source,
     fixed_source,
     status,
 ):
     result = {
-        "bug": "Player damage heals instead of hurting",
-        "test": TEST_NAME,
+        "bug": "Gameplay logic failure",
         "file": SOURCE_FILE,
         "log": test_output,
-        "original_code": old_source,
+        "original_code": original_source,
         "patch": fixed_source,
         "status": status,
     }
@@ -74,42 +88,48 @@ def save_result(
         encoding="utf-8",
     )
 
-    print("\nSaved debugging result to result.json")
+    print("\nDebugging result saved to result.json")
 
 
 def main():
     print()
-    print("====================================")
-    print("        GAMEBUG HUNTER")
-    print("====================================")
+    print("========================================")
+    print("          GAMEBUG HUNTER")
+    print("     Autonomous Debugging Agent")
+    print("========================================")
+    print()
 
-    print("\nScanning gameplay tests...")
+    print("[1] Running gameplay tests...")
 
-    code, output = run_tests()
+    test_code, test_output = run_tests()
 
-    if code == 0:
-        print("\nNo bugs detected.")
-        print("All tests pass.")
+    if test_code == 0:
+        print()
+        print("No failing tests detected.")
         return
 
-    print("\nBUG DETECTED")
-    print("-----------------------------")
-    print("Player damage behavior failed.")
-    print("-----------------------------")
+    print()
+    print("BUG DETECTED")
+    print("----------------------------------------")
+    print(test_output)
+    print("----------------------------------------")
 
-    print(output)
+    source_path = Path(SOURCE_FILE)
 
-    original_source = Path(
-        SOURCE_FILE
-    ).read_text(
+    if not source_path.exists():
+        print(f"ERROR: {SOURCE_FILE} not found.")
+        return
+
+    original_source = source_path.read_text(
         encoding="utf-8"
     )
 
-    print("\nAI analyzing gameplay logic...")
+    print()
+    print("[2] AI analyzing failure...")
 
     try:
         fixed_source = ask_ai(
-            output,
+            test_output,
             original_source,
         )
 
@@ -117,63 +137,60 @@ def main():
         print(f"\nAI ERROR: {error}")
         return
 
-    fixed_source = (
+    fixed_source = clean_ai_output(
         fixed_source
-        .replace("```python", "")
-        .replace("```", "")
-        .strip()
     )
 
-    print("\nAI generated patch:")
-    print("-----------------------------")
+    print()
+    print("AI GENERATED PATCH")
+    print("----------------------------------------")
     print(fixed_source)
-    print("-----------------------------")
+    print("----------------------------------------")
 
-    Path(
-        SOURCE_FILE
-    ).write_text(
+    source_path.write_text(
         fixed_source + "\n",
         encoding="utf-8",
     )
 
-    print("\nVerifying fix...")
+    print()
+    print("[3] Patch applied.")
+    print("[4] Verifying fix...")
+    print()
 
     verify_code, verify_output = run_tests()
 
     print(verify_output)
 
     if verify_code == 0:
+
         print()
-        print("====================================")
-        print("      BUG FIXED AND VERIFIED")
-        print("====================================")
+        print("========================================")
+        print("        BUG FIXED AND VERIFIED")
+        print("========================================")
 
         save_result(
-            test_output=output,
-            old_source=original_source,
-            fixed_source=fixed_source,
-            status="fixed",
+            test_output,
+            original_source,
+            fixed_source,
+            "fixed",
         )
 
     else:
-        print("\nAI patch failed.")
 
-        print(
-            "Restoring original gameplay code..."
-        )
+        print()
+        print("PATCH FAILED")
+        print("Restoring original source...")
 
-        Path(
-            SOURCE_FILE
-        ).write_text(
+        source_path.write_text(
             original_source,
             encoding="utf-8",
         )
 
         save_result(
-            test_output=output,
-            old_source=original_source,
-            fixed_source=fixed_source,
-            status="failed",
+            test_output,
+            original_source,
+            fixed_source,
+            "failed",
         )
 
 
